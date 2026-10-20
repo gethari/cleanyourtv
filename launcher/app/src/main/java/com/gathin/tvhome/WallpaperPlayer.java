@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 final class WallpaperPlayer {
     private final UnsplashWallpaper unsplash;
@@ -25,6 +27,8 @@ final class WallpaperPlayer {
     private final ImageView image;
     private final List<File> files;
     private final long interval;
+    private final String order;
+    private final boolean companionCollectionActive;
     private final SharedPreferences preferences;
     private final ExecutorService decoder = Executors.newSingleThreadExecutor();
     private final Random random = new Random();
@@ -53,7 +57,10 @@ final class WallpaperPlayer {
         creditLayout.setMargins(0, 0, 24, 12);
         root.addView(credit, creditLayout);
         files = new ArrayList<>(config.wallpapers);
-        interval = config.wallpaperRotationMinutes * 60_000L;
+        PlaybackSettings playback = playbackSettings(context, config, files);
+        interval = playback.intervalMinutes * 60_000L;
+        order = playback.order;
+        companionCollectionActive = playback.companionCollectionActive;
         preferences = context.getSharedPreferences("wallpaper_rotation", Context.MODE_PRIVATE);
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         width = metrics.widthPixels;
@@ -89,7 +96,8 @@ final class WallpaperPlayer {
 
     void update() {
         if (!active || closed || loading) return;
-        if (unsplash.enabled() && (unsplash.due() || displayed.isEmpty())) {
+        // An active companion collection is the TV-owned source and stays offline-capable.
+        if (!companionCollectionActive && unsplash.enabled() && (unsplash.due() || displayed.isEmpty())) {
             loading = true;
             decoder.execute(() -> {
                 UnsplashWallpaper.Photo photo = unsplash.load(width, height);
@@ -125,18 +133,17 @@ final class WallpaperPlayer {
             });
             return;
         }
-        if (unsplash.enabled() && displayed.startsWith("unsplash:")) return;
+        if (!companionCollectionActive && unsplash.enabled() && displayed.startsWith("unsplash:")) return;
         updateOffline();
     }
 
     private void updateOffline() {
         if (files.isEmpty()) return;
         String previous = preferences.getString("image", "");
-        File selected = WallpaperRotation.find(files, previous);
         long changed = preferences.getLong("changed", 0);
-        if (selected == null || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
-            selected = WallpaperRotation.pick(files, previous, random);
-        }
+        WallpaperRotation.Playback selection = WallpaperRotation.select(files, previous, changed,
+                System.currentTimeMillis(), interval, order, random);
+        File selected = selection.image;
         if (selected == null || selected.getName().equals(displayed)) return;
         File next = selected;
         loading = true;
@@ -157,13 +164,61 @@ final class WallpaperPlayer {
                 credit.setVisibility(View.GONE);
                 image.setImageBitmap(bitmap);
                 displayed = next.getName();
-                if (!displayed.equals(previous) || changed == 0) {
+                if (!displayed.equals(previous) || changed == 0
+                        || selection.changedAt != changed) {
                     preferences.edit().putString("image", displayed)
-                            .putLong("changed", System.currentTimeMillis()).apply();
+                            .putLong("changed", selection.changedAt).apply();
                 }
                 Log.i("TvHome.Wallpaper", "Showing " + displayed);
             });
         });
+    }
+
+    private static final class PlaybackSettings {
+        final int intervalMinutes;
+        final String order;
+        final boolean companionCollectionActive;
+
+        PlaybackSettings(int intervalMinutes, String order, boolean companionCollectionActive) {
+            this.intervalMinutes = intervalMinutes;
+            this.order = order;
+            this.companionCollectionActive = companionCollectionActive;
+        }
+    }
+
+    /** Reads playback policy from the active collection, falling back to legacy theme settings. */
+    private static PlaybackSettings playbackSettings(Context context, Config config,
+                                                     List<File> activeWallpapers) {
+        int interval = WallpaperRotation.intervalMinutes(config.wallpaperRotationMinutes,
+                WallpaperRotation.DEFAULT_INTERVAL_MINUTES);
+        String order = WallpaperRotation.SHUFFLE;
+        boolean selectedCollectionFound = false;
+        try {
+            JSONObject state = CompanionProvider.store(context).state();
+            JSONObject settings = state.optJSONObject("settings");
+            if (settings != null) {
+                interval = WallpaperRotation.intervalMinutes(settings.opt("wallpaper_rotation_minutes"), interval);
+                order = WallpaperRotation.order(settings.opt("wallpaper_order"), order);
+            }
+            String activeId = state.optString("active_collection", "");
+            JSONArray collections = state.optJSONArray("collections");
+            if (collections != null) {
+                for (int i = 0; i < collections.length(); i++) {
+                    JSONObject collection = collections.optJSONObject(i);
+                    if (collection == null || !activeId.equals(collection.optString("id"))) continue;
+                    JSONArray assets = collection.optJSONArray("assets");
+                    selectedCollectionFound = assets != null && assets.length() > 0;
+                    interval = WallpaperRotation.intervalMinutes(collection.opt("interval_minutes"), interval);
+                    order = WallpaperRotation.order(collection.opt("order"), order);
+                    break;
+                }
+            }
+        } catch (Exception ignored) {
+            // A malformed or unavailable companion state must not stop the legacy wallpaper.
+        }
+        boolean companionActive = WallpaperRotation.companionCollectionActive(selectedCollectionFound,
+                CompanionProvider.selectedAssets(context), activeWallpapers);
+        return new PlaybackSettings(interval, order, companionActive);
     }
 
     private Bitmap decode(File file) {
