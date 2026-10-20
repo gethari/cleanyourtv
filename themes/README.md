@@ -50,8 +50,9 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `sky_intensity` | 0 to 100 | Time-of-day backdrop: a dark gradient that follows the clock, 0 hides it (default) |
 | `wallpaper` | bool | Show `wallpaper.jpg` from the theme folder (`true`), or ignore it (`false`) |
-| `wallpaper_rotation_minutes` | 0 to 1440 | Randomly rotate images in the theme's `wallpapers/` folder at this interval; 0 keeps the single-image behaviour |
+| `wallpaper_rotation_minutes` | 0 to 1440 | Randomly rotate local images at this interval; 0 keeps the single-image behaviour. Online providers use a 30-minute minimum |
 | `wallpaper_dim` | 0 to 90 | Black overlay over wallpaper images, in percent; 0 by default |
+| `wallpaper_provider` | `auto`, `local`, or provider ID | `auto` uses an online provider only when it has been configured; `local` keeps the launcher offline |
 | `festival` | string | Turns on a festive skin: the network pill becomes a diya whose flame follows the connection, Inputs a temple bell, Settings a marigold, and the first Home of the day gets a petal shower. `dussehra` and `diwali` have built-in greetings |
 | `festival_until` | `YYYY-MM-DD` | Last day the festive skin shows; it switches itself off after that. A malformed date turns it off |
 | `greeting` | string | Replaces the time-of-day greeting while the festive skin is on |
@@ -82,8 +83,36 @@ An empty collection falls back to `wallpaper.jpg`, or the background colour if n
 Selection is random without an immediate repeat when alternatives exist. The current image and its
 change time survive app/process restarts. Rotation runs only while Home is visible; on return from
 another app, an overdue background changes then. Images are decoded on a worker thread and bounded
-to the screen size. There is no download service, Internet permission or computer-side scheduler.
-The original system idle screensaver is left unchanged.
+to the screen size. The original system idle screensaver is left unchanged.
+
+### Optional online providers
+
+Local wallpaper files remain the default. Online providers are used only after you configure one;
+without provider credentials the launcher makes no wallpaper network requests. Set
+`"wallpaper_provider": "local"` to keep using theme files when a provider has been configured, or
+`"wallpaper_provider": "auto"` (the default) to use a configured provider. Set `"wallpaper": false`
+to turn off all wallpaper sources.
+
+Unsplash is the first provider. Create an Unsplash developer app and save its Access Key in a private
+environment file as `UNSPLASH_ACCESS_KEY=...`. Then run this from the repository root, replacing the
+collection IDs and ADB serial with your own:
+
+```sh
+python3 tools/unsplash-setup.py \
+  --env-file ~/.config/cleanyourtv/credentials \
+  --collections ID1,ID2 \
+  --serial TV_ADB_SERIAL
+```
+
+The command checks the collections and transfers the key without putting it in shell history or logs.
+The launcher stores it in private app data, removes the transfer file after import, and downloads a
+new image at the configured rotation interval (30 minutes minimum). The image credit links to its
+photographer. Unsplash access requires its own developer key
+and follows the [Unsplash API guidelines](https://help.unsplash.com/en/articles/2511245-unsplash-api-guidelines).
+This provider is optional; local collections work without an Unsplash account or Internet access.
+
+To add another provider, implement `WallpaperProvider`, add its factory to `WallpaperProviders`, and
+document its provider ID and setup. The player handles rendering, local-image fallback, and attribution.
 
 ## Reduced motion
 

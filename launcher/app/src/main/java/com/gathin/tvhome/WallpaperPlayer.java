@@ -10,6 +10,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import java.util.concurrent.Executors;
 final class WallpaperPlayer {
     private final FrameLayout root;
     private final ImageView image;
+    private final TextView credit;
+    private final WallpaperProvider provider;
     private final List<File> files;
     private final long interval;
     private final SharedPreferences preferences;
@@ -32,11 +35,13 @@ final class WallpaperPlayer {
     private boolean active;
     private boolean closed;
     private boolean loading;
+    private boolean providerLoaded;
     private String displayed = "";
 
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
         this.root = root;
         files = new ArrayList<>(config.wallpapers);
+        provider = WallpaperProviders.create(context, config);
         interval = config.wallpaperRotationMinutes * 60_000L;
         preferences = context.getSharedPreferences("wallpaper_rotation", Context.MODE_PRIVATE);
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
@@ -45,7 +50,20 @@ final class WallpaperPlayer {
         image = new ImageView(context);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        if (config.wallpaperEnabled && !files.isEmpty()) {
+        credit = new TextView(context);
+        credit.setTextColor(android.graphics.Color.WHITE);
+        credit.setTextSize(12);
+        credit.setPadding(12, 6, 12, 6);
+        credit.setBackgroundColor(0x99000000);
+        credit.setVisibility(View.GONE);
+        credit.setFocusable(true);
+        credit.setOnFocusChangeListener((view, focused) ->
+                view.setBackgroundColor(focused ? 0xFF444444 : 0x99000000));
+        FrameLayout.LayoutParams creditLayout = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM | android.view.Gravity.RIGHT);
+        creditLayout.setMargins(0, 0, 24, 12);
+        if (config.wallpaperEnabled && (!files.isEmpty() || provider != null)) {
             root.addView(image, 0, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             View shade = new View(context);
@@ -53,6 +71,7 @@ final class WallpaperPlayer {
             shade.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             root.addView(shade, 1, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            root.addView(credit, 2, creditLayout);
         }
     }
 
@@ -72,7 +91,48 @@ final class WallpaperPlayer {
     }
 
     void update() {
-        if (!active || closed || loading || files.isEmpty()) return;
+        if (!active || closed || loading) return;
+        if (provider != null && (!providerLoaded || provider.due())) {
+            loading = true;
+            decoder.execute(() -> {
+                WallpaperProvider.Image photo = provider.load(width, height);
+                root.post(() -> {
+                    loading = false;
+                    providerLoaded = true;
+                    if (closed || !active) {
+                        if (photo != null) photo.bitmap.recycle();
+                        return;
+                    }
+                    if (photo != null) {
+                        image.setImageBitmap(photo.bitmap);
+                        displayed = provider.id() + ":" + photo.id;
+                        credit.setText(photo.credit);
+                        credit.setContentDescription(photo.description);
+                        credit.setVisibility(View.VISIBLE);
+                        credit.setOnClickListener(view -> {
+                            try {
+                                root.getContext().startActivity(new android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(photo.link)));
+                            } catch (android.content.ActivityNotFoundException unavailable) {
+                                android.widget.Toast.makeText(root.getContext(), photo.credit,
+                                        android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        });
+                        Log.i("TvHome.Wallpaper", "Showing " + provider.id() + " photo " + photo.id);
+                    } else {
+                        updateLocal();
+                    }
+                });
+            });
+            return;
+        }
+        if (provider != null && displayed.startsWith(provider.id() + ":")) return;
+        updateLocal();
+    }
+
+    private void updateLocal() {
+        if (files.isEmpty()) return;
         String previous = preferences.getString("image", "");
         File selected = WallpaperRotation.find(files, previous);
         long changed = preferences.getLong("changed", 0);
@@ -96,6 +156,7 @@ final class WallpaperPlayer {
                     update();
                     return;
                 }
+                credit.setVisibility(View.GONE);
                 image.setImageBitmap(bitmap);
                 displayed = next.getName();
                 if (!displayed.equals(previous) || changed == 0) {
