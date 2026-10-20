@@ -57,7 +57,11 @@ final class Config {
     /** Time-of-day backdrop, 0 to 100 (config.xml, sky_intensity); 0 keeps the plain background. */
     final int skyIntensity;
     /** Full-screen picture behind the launcher, or null for the plain colour. */
+    final boolean wallpaperEnabled;
     final File wallpaper;
+    final List<File> wallpapers;
+    final int wallpaperRotationMinutes;
+    final int wallpaperDim;
     /** Whether the overlay file was present and parsed. */
     final boolean overlayApplied;
     /** Festive skin from a theme (festival, festival_until, greeting, accent_color); {@link Festival#NONE} if none. */
@@ -68,7 +72,8 @@ final class Config {
                    int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, int backgroundColor, int skyIntensity,
-                   File wallpaper, boolean overlayApplied, Festival festival) {
+                   boolean wallpaperEnabled, File wallpaper, List<File> wallpapers, int wallpaperRotationMinutes, int wallpaperDim,
+                   boolean overlayApplied, Festival festival) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
         this.liveTvPackage = liveTvPackage;
@@ -87,7 +92,11 @@ final class Config {
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
         this.backgroundColor = backgroundColor;
         this.skyIntensity = skyIntensity;
+        this.wallpaperEnabled = wallpaperEnabled;
         this.wallpaper = wallpaper;
+        this.wallpapers = Collections.unmodifiableList(wallpapers);
+        this.wallpaperRotationMinutes = wallpaperRotationMinutes;
+        this.wallpaperDim = wallpaperDim;
         this.overlayApplied = overlayApplied;
         this.festival = festival;
     }
@@ -95,6 +104,22 @@ final class Config {
     /** The folder the theme tools push into; null when external storage is unavailable. */
     static File dir(Context ctx) {
         return ctx.getExternalFilesDir(null);
+    }
+
+    static int[] settingsKeyScancodes(Context context) {
+        int[] fallback = context.getResources().getIntArray(R.array.settings_key_scancodes);
+        return settingsKeyCodes(context, "settings_key_scancodes", fallback);
+    }
+
+    static int[] settingsKeycodes(Context context) {
+        int[] fallback = context.getResources().getIntArray(R.array.settings_key_keycodes);
+        return settingsKeyCodes(context, "settings_key_keycodes", fallback);
+    }
+
+    private static int[] settingsKeyCodes(Context context, String key, int[] fallback) {
+        File directory = dir(context);
+        JSONObject json = read(directory == null ? null : new File(directory, FILE_NAME));
+        return json == null ? fallback : intArray(json, key, fallback);
     }
 
     static Config load(Context ctx) {
@@ -121,7 +146,7 @@ final class Config {
 
         File dir = dir(ctx);
         File file = dir != null ? new File(dir, FILE_NAME) : null;
-        JSONObject json = read(file);
+        JSONObject json = CompanionProvider.overlay(ctx, read(file));
         if (json != null) {
             applied = true;
             dock = stringList(json, "dock_apps", dock);
@@ -155,6 +180,15 @@ final class Config {
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
         // A theme can also switch the wallpaper off while the file is still there.
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
+        int rotationMinutes = json == null ? 0 : integer(json, "wallpaper_rotation_minutes", 0, 0, 1440);
+        int wallpaperDim = json == null ? 0 : integer(json, "wallpaper_dim", 0, 0, 100);
+        List<File> wallpapers = new ArrayList<>();
+        if (rotationMinutes > 0 && dir != null && (json == null || bool(json, "wallpaper", true))) {
+            wallpapers.addAll(WallpaperRotation.images(new File(dir, "wallpapers")));
+        }
+        if (wallpapers.isEmpty() && wallpaper != null) wallpapers.add(wallpaper);
+        List<File> companionImages = CompanionProvider.selectedAssets(ctx);
+        if ((json == null || bool(json, "wallpaper", true)) && !companionImages.isEmpty()) { wallpapers.clear(); wallpapers.addAll(companionImages); }
         // A festive skin comes only from a theme; config.xml has no festival.
         Festival festival = json == null ? Festival.NONE : Festival.parse(string(json, "festival", ""),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
@@ -162,7 +196,9 @@ final class Config {
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
                 shamsi, moduleCards, reducedMotion, vpn, homeSettings, background,
-                Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied, festival);
+                Math.max(0, Math.min(100, skyIntensity)), json == null || bool(json, "wallpaper", true),
+                wallpaper, wallpapers, rotationMinutes,
+                wallpaperDim, applied, festival);
     }
 
     private static void syncThemeChoices(SharedPreferences choices, File dir, File config) {
@@ -199,7 +235,7 @@ final class Config {
     }
 
     /** Reads and parses the overlay; any problem means "no overlay", never a crash on the home screen. */
-    private static JSONObject read(File file) {
+    static JSONObject read(File file) {
         if (file == null || !file.isFile()) return null;
         if (file.length() > 64 * 1024) {
             Log.w(TAG, "ignoring " + file + ": larger than 64 KB");
@@ -233,6 +269,21 @@ final class Config {
         if (!(v instanceof Number)) return fallback;
         int i = ((Number) v).intValue();
         return i < min || i > max ? fallback : i;
+    }
+
+    private static int[] intArray(JSONObject object, String key, int[] fallback) {
+        Object value = object.opt(key);
+        if (!(value instanceof JSONArray)) return fallback;
+        JSONArray array = (JSONArray) value;
+        if (array.length() > 32) return fallback;
+        int[] result = new int[array.length()];
+        for (int i = 0; i < array.length(); i++) {
+            Object item = array.opt(i);
+            if (!(item instanceof Number)) return fallback;
+            result[i] = ((Number) item).intValue();
+            if (result[i] < 1) return fallback;
+        }
+        return result;
     }
 
     private static int color(JSONObject o, String key, int fallback) {

@@ -24,8 +24,8 @@ public class HomeKeyService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
-        settingsKeycodes = getResources().getIntArray(R.array.settings_key_keycodes);
+        settingsScancodes = Config.settingsKeyScancodes(this);
+        settingsKeycodes = Config.settingsKeycodes(this);
     }
 
     private boolean isSettingsKey(KeyEvent event) {

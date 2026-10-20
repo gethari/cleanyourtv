@@ -10,9 +10,11 @@ android {
         applicationId 'com.gathin.tvhome'
         minSdk 26
         targetSdk 34
-        versionCode 4
-        versionName '2.3'
+        versionCode 7
+        versionName '2.5-companion.1'
     }
+
+    buildFeatures { buildConfig true }
 
     buildTypes {
         release {
@@ -36,4 +38,5 @@ dependencies {
     implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
     // Test only (never in the APK): plain JVM tests for the module card validators, src/test.
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
 }
