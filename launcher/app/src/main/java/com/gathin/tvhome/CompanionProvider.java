@@ -12,6 +12,7 @@ import android.util.Base64;
 import org.json.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -45,14 +46,40 @@ public final class CompanionProvider extends ContentProvider {
     }
     static JSONObject overlay(Context context,JSONObject theme) {
         try{
-            JSONObject result=theme==null?new JSONObject():CompanionStore.copy(theme),overrides=store(context).overrides();
-            if(overrides.length()==0)return theme;
-            for(Iterator<String> it=overrides.keys();it.hasNext();){String key=it.next();result.put(key,overrides.get(key));}
+            JSONObject result=theme==null?new JSONObject():CompanionStore.copy(theme);
+            JSONObject settings=store(context).state().getJSONObject("settings");
+            for(Iterator<String> it=settings.keys();it.hasNext();){String key=it.next();result.put(key,settings.get(key));}
+            applySchedule(settings, Instant.now());
+            for(Iterator<String> it=settings.keys();it.hasNext();){String key=it.next();result.put(key,settings.get(key));}
             return result;
         }catch(Exception e){return theme;}
     }
     static List<File> selectedAssets(Context context) {
-        try{return store(context).selectedAssets();}catch(Exception e){return Collections.emptyList();}
+        try{
+            CompanionStore source=store(context);JSONObject settings=source.state().getJSONObject("settings");
+            applySchedule(settings,Instant.now());
+            return source.selectedAssets(settings.optString("active_collection",""));
+        }catch(Exception e){return Collections.emptyList();}
+    }
+    static JSONObject effectiveSettings(Context context) throws Exception {
+        JSONObject settings=store(context).state().getJSONObject("settings");
+        applySchedule(settings,Instant.now());return settings;
+    }
+    static String effectiveThemeFingerprint(Context context) {
+        try{
+            JSONObject settings=effectiveSettings(context),theme=new JSONObject();
+            for(String key:Arrays.asList("wallpaper","wallpaper_dim","background_color","accent_color","active_collection"))
+                if(settings.has(key))theme.put(key,settings.get(key));
+            return CompanionStore.hash(CompanionStore.canonical(theme).getBytes(StandardCharsets.UTF_8));
+        }catch(Exception failure){return "";}
+    }
+    private static JSONObject applySchedule(JSONObject settings,Instant now) throws Exception {
+        JSONObject schedule=settings.optJSONObject("theme_schedule");if(schedule==null)return null;
+        ThemeSchedule.Schedule parsed=ThemeSchedule.validate(schedule);
+        ThemeSchedule.ManualOverride manual=ThemeSchedule.manualOverride(settings.optJSONObject("theme_manual_override"));
+        ThemeSchedule.Effective effective=ThemeSchedule.effective(parsed,now,manual);
+        for(Iterator<String> it=effective.theme.keys();it.hasNext();){String key=it.next();settings.put(key,effective.theme.get(key));}
+        return ThemeSchedule.preview(schedule,now,8,manual);
     }
     static String revision(Context context) {
         try{return store(context).state().getString("revision");}catch(Exception e){return "";}
@@ -75,7 +102,18 @@ public final class CompanionProvider extends ContentProvider {
                 case "capabilities":data=new JSONObject().put("protocol_version",1).put("launcher_version",BuildConfig.VERSION_NAME)
                     .put("features",new JSONArray(Arrays.asList("collections_v1","atomic_activation_v1","revision_checks_v1","readback_v1")))
                     .put("limits",new JSONObject().put("asset_bytes",CompanionStore.ASSET_BYTES).put("collection_bytes",CompanionStore.TOTAL_BYTES).put("asset_count",CompanionStore.ASSET_COUNT));break;
-                case "state":data=store.state();break;
+                case "state":
+                    data=store.state();JSONObject effectiveSettings=CompanionStore.copy(data.getJSONObject("settings"));
+                    JSONObject preview=applySchedule(effectiveSettings,Instant.now());
+                    if(preview!=null)data.put("schedule_preview",preview).put("effective_settings",effectiveSettings);
+                    break;
+                case "schedule_preview":
+                    JSONObject schedule=request.getJSONObject("schedule");
+                    long now=request.has("now")?request.getLong("now"):System.currentTimeMillis();
+                    CompanionStore.require(now>=946684800000L && now<=4102444800000L,"invalid_request");
+                    int count=request.has("count")?request.getInt("count"):8;
+                    CompanionStore.require(count>=0 && count<=32,"invalid_request");
+                    data=ThemeSchedule.preview(schedule,Instant.ofEpochMilli(now),count);break;
                 case "stage":data=store.stage(request);break;
                 case "validate":data=store.validate(request.getString("session_id"));break;
                 case "activate":data=store.activate(request);getContext().sendBroadcast(new Intent(ACTION_UPDATED).setPackage(getContext().getPackageName()));break;

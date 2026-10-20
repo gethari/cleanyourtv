@@ -13,7 +13,8 @@ final class CompanionStore {
     static final long ASSET_BYTES = 20L * 1024 * 1024, TOTAL_BYTES = 256L * 1024 * 1024;
     static final int ASSET_COUNT = 200;
     static final Set<String> KEYS = new HashSet<>(Arrays.asList("wallpaper", "wallpaper_rotation_minutes",
-        "wallpaper_dim", "wallpaper_order", "active_collection", "background_color", "accent_color", "reduced_motion"));
+        "wallpaper_dim", "wallpaper_order", "active_collection", "background_color", "accent_color", "reduced_motion",
+        "theme_schedule", "theme_manual_override"));
     interface Source { JSONObject read() throws Exception; }
     interface Sync { void directory(File directory) throws Exception; }
     interface ImageCheck { void verify(File image, String mime) throws Exception; }
@@ -116,10 +117,22 @@ final class CompanionStore {
                 case "wallpaper_dim": valid=integer(value,0,100);break;
                 case "wallpaper_order":valid=value instanceof String && Arrays.asList("sequential","shuffle").contains(value);break;
                 case "active_collection":valid=value instanceof String && hex((String)value,32);break;
+                case "theme_schedule":
+                    valid=value instanceof JSONObject;
+                    if(valid)try{ThemeSchedule.validate((JSONObject)value);}catch(IllegalArgumentException invalid){valid=false;}
+                    break;
+                case "theme_manual_override":
+                    valid=validManualOverride(value);
+                    break;
                 default:valid=value instanceof String && ((String)value).matches("#[a-fA-F0-9]{6}");
             }
             require(valid,"invalid_request");
         }
+    }
+    private static boolean validManualOverride(Object value) {
+        if(!(value instanceof JSONObject))return false;
+        try{ThemeSchedule.manualOverride((JSONObject)value);return true;}
+        catch(IllegalArgumentException invalid){return false;}
     }
     private File sessionFile(String id) throws Exception { require(hex(id,32),"invalid_request"); return new File(sessions,id+".json"); }
     JSONObject session(String id) throws Exception { File file=sessionFile(id); require(file.isFile(),"unknown_session"); JSONObject value=read(file,new JSONObject());require(!value.optBoolean("discarded",false),"unknown_session");return value; }
@@ -216,7 +229,11 @@ final class CompanionStore {
     }
     synchronized JSONObject overrides() throws Exception {return copy(active().getJSONObject("settings"));}
     synchronized List<File> selectedAssets() throws Exception {
-        JSONObject active=active();String selected=active.getJSONObject("settings").optString("active_collection","");List<File> result=new ArrayList<>();
+        JSONObject active=active();String selected=active.getJSONObject("settings").optString("active_collection","");
+        return selectedAssets(selected);
+    }
+    synchronized List<File> selectedAssets(String selected) throws Exception {
+        JSONObject active=active();List<File> result=new ArrayList<>();
         JSONArray collections=active.getJSONArray("collections");for(int i=0;i<collections.length();i++) {JSONObject c=collections.getJSONObject(i);if(!selected.equals(c.getString("id")))continue;JSONArray list=c.getJSONArray("assets");for(int j=0;j<list.length();j++){String sha=list.getJSONObject(j).getString("sha256");if(hex(sha,64)){File f=new File(assets,sha);if(f.isFile())result.add(f);}}}
         return result;
     }

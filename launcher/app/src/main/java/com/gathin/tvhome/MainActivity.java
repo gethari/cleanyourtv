@@ -93,9 +93,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private FrameLayout root;
     private WallpaperPlayer wallpaperPlayer;
     private String companionRevision = "";
+    private String scheduleFingerprint = "";
     private final BroadcastReceiver companionReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (!companionRevision.equals(CompanionProvider.revision(MainActivity.this))) recreate();
+        }
+    };
+    private final BroadcastReceiver scheduleClockReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            handler.post(MainActivity.this::refreshScheduledTheme);
         }
     };
     private GlassView glass;
@@ -202,6 +208,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Runnable minuteTick = new Runnable() {
         @Override
         public void run() {
+            if (refreshScheduledTheme()) return;
             updateGreeting();
             updateWifiLabel();
             sky.update();
@@ -218,6 +225,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
         Config cfg = Config.load(this);
         companionRevision = CompanionProvider.revision(this);
+        scheduleFingerprint = CompanionProvider.effectiveThemeFingerprint(this);
         COLUMNS = cfg.columns;
         animations = cfg.animations;
         advancedEffects = cfg.animations && cfg.advancedEffects;
@@ -414,6 +422,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onStart() {
         super.onStart();
+        IntentFilter clockFilter = new IntentFilter();
+        clockFilter.addAction(Intent.ACTION_TIME_CHANGED);
+        clockFilter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        clockFilter.addAction(Intent.ACTION_DATE_CHANGED);
+        registerReceiver(scheduleClockReceiver, clockFilter);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(packageReceiver, packageFilter, Context.RECEIVER_NOT_EXPORTED);
             registerReceiver(companionReceiver, new IntentFilter(CompanionProvider.ACTION_UPDATED), Context.RECEIVER_NOT_EXPORTED);
@@ -427,6 +440,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         if (!companionRevision.equals(CompanionProvider.revision(this))) { recreate(); return; }
+        if (refreshScheduledTheme()) return;
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -541,7 +555,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onStop();
         unregisterReceiver(packageReceiver);
         unregisterReceiver(companionReceiver);
+        unregisterReceiver(scheduleClockReceiver);
         rebuildOnResume = true;
+    }
+
+    /** Rebuilds Config and the wallpaper collection only when a schedule changes its effective theme. */
+    private boolean refreshScheduledTheme() {
+        String current = CompanionProvider.effectiveThemeFingerprint(this);
+        if (current.equals(scheduleFingerprint)) return false;
+        recreate();
+        return true;
     }
 
     @Override
