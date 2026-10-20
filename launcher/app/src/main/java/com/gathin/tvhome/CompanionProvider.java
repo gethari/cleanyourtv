@@ -36,6 +36,10 @@ public final class CompanionProvider extends ContentProvider {
             BitmapFactory.decodeFile(file.getPath(),options);
             CompanionStore.require(options.outWidth>0 && options.outHeight>0 && options.outWidth<=16384 && options.outHeight<=16384
                 && (long)options.outWidth*options.outHeight<=33177600 && mime.equals(options.outMimeType),"invalid_asset");
+            BitmapFactory.Options decode=new BitmapFactory.Options();decode.inSampleSize=1;
+            while(options.outWidth/decode.inSampleSize>512 || options.outHeight/decode.inSampleSize>512)decode.inSampleSize*=2;
+            android.graphics.Bitmap bitmap=BitmapFactory.decodeFile(file.getPath(),decode);
+            CompanionStore.require(bitmap!=null,"invalid_asset");bitmap.recycle();
         });
         return instance;
     }

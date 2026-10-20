@@ -50,6 +50,13 @@ public class CompanionStoreTest {
         failure("request_conflict",()->store.discard(SESSION));
         assertEquals("activated",make().result(OP).getString("status"));
     }
+    @Test public void operation_identifier_cannot_activate_a_different_session() throws Exception {
+        JSONObject first=request("{}",new JSONArray());store.stage(first);store.activate(activation(first.getString("expected_revision")));
+        String second="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        JSONObject next=request("{}",new JSONArray()).put("request_id",second);store.stage(next);
+        JSONObject reused=activation(next.getString("expected_revision")).put("session_id",second);
+        failure("request_conflict",()->store.activate(reused));
+    }
     @Test public void later_manual_theme_or_tv_preference_changes_block_activation() throws Exception {
         JSONObject stage=request("{\"set\":{\"wallpaper\":false}}",new JSONArray());store.stage(stage);
         source.getJSONObject("preferences").put("columns",6);

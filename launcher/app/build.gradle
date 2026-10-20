@@ -10,8 +10,8 @@ android {
         applicationId 'com.gathin.tvhome'
         minSdk 26
         targetSdk 34
-        versionCode 7
-        versionName '2.5-companion.1'
+        versionCode 8
+        versionName '2.5-companion.2'
     }
 
     buildFeatures { buildConfig true }

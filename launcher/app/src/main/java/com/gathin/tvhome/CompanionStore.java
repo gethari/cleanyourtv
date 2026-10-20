@@ -188,6 +188,7 @@ final class CompanionStore {
     synchronized JSONObject activate(JSONObject request) throws Exception {
         String id=request.getString("session_id"), op=request.getString("request_id");require(hex(op,32),"invalid_request");
         JSONObject active=active(), operations=active.getJSONObject("operations");
+        if(operations.has(op))require(id.equals(operations.getJSONObject(op).getString("session_id")),"request_conflict");
         for(Iterator<String> it=operations.keys();it.hasNext();) {String previous=it.next();JSONObject result=operations.getJSONObject(previous);if(id.equals(result.getString("session_id")))return new JSONObject().put("revision",result.getString("revision")).put("operation_id",previous);}
         require(request.getString("expected_revision").equals(state().getString("revision")),"revision_conflict");
         JSONObject checked=validate(id);require(checked.getBoolean("ready"),"missing_assets");JSONObject session=session(id), patch=session.getJSONObject("patch");
