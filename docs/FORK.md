@@ -71,6 +71,9 @@ adb -s <tv-endpoint> shell cmd package set-home-activity com.gathin.tvhome/.Main
 ```
 
 An in-place update keeps the launcher's private credentials and settings. Do not uninstall it first.
+Some firmware leaves the Home accessibility helper enabled but unbound after an APK replacement.
+If Home briefly returns to Google TV, open TV Accessibility settings and toggle this launcher's
+Home button service off and on, then confirm both physical Home and Settings buttons again.
 Apply `themes/tcl-q6k/config.json` using the existing theme tools for the personal dock controls,
 or set `dock_placement` to `1`, `2` or `3` in your own theme. The included TCL theme contains example
 app package choices: use the on-TV app picker to replace them with your own.
