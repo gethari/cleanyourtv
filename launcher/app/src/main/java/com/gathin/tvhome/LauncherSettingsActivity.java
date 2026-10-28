@@ -106,6 +106,25 @@ public final class LauncherSettingsActivity extends Activity {
             reverseRow(rowChoices);
             reverseRow(dockChoices);
         }
+        findViewById(R.id.tilePositionChoice).setEnabled(PersonalDock.placement(this) == 0);
+        findViewById(R.id.tilePositionChoice).setAlpha(PersonalDock.placement(this) == 0 ? 1f : 0.5f);
+        findViewById(R.id.wallpaperIntervalChoice).setOnClickListener(v -> chooseWallpaperInterval());
+        findViewById(R.id.dockPlacementChoice).setOnClickListener(v -> {
+            String[] labels = {getString(R.string.dock_theme_layout), getString(R.string.dock_bottom),
+                    getString(R.string.dock_left), getString(R.string.dock_right)};
+            new AlertDialog.Builder(this).setTitle(R.string.dock_placement)
+                    .setSingleChoiceItems(labels, PersonalDock.placement(this), (dialog, which) -> {
+                        choices.edit().putInt(PersonalDock.PLACEMENT, which).apply();
+                        findViewById(R.id.tilePositionChoice).setEnabled(which == 0);
+                        findViewById(R.id.tilePositionChoice).setAlpha(which == 0 ? 1f : 0.5f);
+                        changed();
+                        dialog.dismiss();
+                    }).setNegativeButton(android.R.string.cancel, null).show();
+        });
+        findViewById(R.id.manageDockChoice).setOnClickListener(v ->
+                PersonalDock.manage(this, Config.load(this), this::changed));
+        findViewById(R.id.tileSizeChoice).setOnClickListener(v -> chooseTileLayout(true));
+        findViewById(R.id.tilePositionChoice).setOnClickListener(v -> chooseTileLayout(false));
         wallpaperChoice = findViewById(R.id.wallpaperChoice);
         wallpaperChoice.setOnClickListener(v -> showWallpaperPicker());
         animationsChoice = findViewById(R.id.animationsChoice);
@@ -140,8 +159,10 @@ public final class LauncherSettingsActivity extends Activity {
             if (!hasOnTvChoices()) return;
             choices.edit().remove("columns").remove(Config.ROWS_BELOW_DOCK_KEY).remove("animations")
                     .remove("advanced_effects").remove(Config.WALLPAPER_CHOICE_KEY)
-                    .remove(Config.DOCK_OPACITY_KEY).remove(OpenOnStart.KEY).commit();
+                    .remove(Config.DOCK_OPACITY_KEY).remove(TileLayout.SCALE).remove(TileLayout.POSITION).remove(PersonalDock.PLACEMENT).remove("wallpaper_interval_minutes").remove(OpenOnStart.KEY).commit();
             Config current = Config.load(this);
+            findViewById(R.id.tilePositionChoice).setEnabled(PersonalDock.placement(this) == 0);
+            findViewById(R.id.tilePositionChoice).setAlpha(PersonalDock.placement(this) == 0 ? 1f : 0.5f);
             columns = current.columns;
             rowsBelowDock = current.rowsBelowDock;
             dockOpacity = current.dockOpacity;
@@ -157,8 +178,45 @@ public final class LauncherSettingsActivity extends Activity {
         findViewById(R.id.tvSettingsChoice).setOnClickListener(v ->
                 open(SystemSettings.intent(this, Settings.ACTION_SETTINGS)));
         refresh();
+        if (getIntent().getBooleanExtra("wallpaper_interval", false))
+            findViewById(R.id.wallpaperIntervalChoice).post(this::chooseWallpaperInterval);
         if (config.launcherSettingsButton) reorderChoice.requestFocus();
         else columnChoices[Math.max(0, Math.min(columns - 4, 3))].requestFocus();
+    }
+
+    private void chooseWallpaperInterval() {
+        int[] minutes = {0, 5, 15, 30, 60, 120, 360, 1440};
+        String[] labels = new String[minutes.length];
+        int selected = -1;
+        int current = Config.load(this).wallpaperRotationMinutes;
+        for (int i = 0; i < minutes.length; i++) {
+            labels[i] = minutes[i] == 0 ? getString(R.string.wallpaper_manual)
+                    : getString(R.string.wallpaper_minutes, minutes[i]);
+            if (minutes[i] == current) selected = i;
+        }
+        new AlertDialog.Builder(this).setTitle(R.string.wallpaper_interval)
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    choices.edit().putInt("wallpaper_interval_minutes", minutes[which]).apply();
+                    changed();
+                    dialog.dismiss();
+                }).setNegativeButton(android.R.string.cancel, null).show();
+    }
+
+    private void chooseTileLayout(boolean size) {
+        TileLayout layout = new TileLayout(this);
+        int[] values = size ? new int[]{50, 60, 70, 80, 90, 100} : new int[]{0, 25, 50, 75, 100};
+        String[] labels = new String[values.length];
+        int selected = -1;
+        for (int i = 0; i < values.length; i++) {
+            labels[i] = values[i] + "%";
+            if (values[i] == (size ? layout.scale : layout.position)) selected = i;
+        }
+        new AlertDialog.Builder(this).setTitle(size ? R.string.tile_size : R.string.tile_position)
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    choices.edit().putInt(size ? TileLayout.SCALE : TileLayout.POSITION, values[which]).apply();
+                    changed();
+                    dialog.dismiss();
+                }).setNegativeButton(android.R.string.cancel, null).show();
     }
 
     private void reverseRow(TextView[] views) {
@@ -302,7 +360,7 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private boolean hasOnTvChoices() {
-        return choices.contains("columns") || choices.contains(Config.ROWS_BELOW_DOCK_KEY)
+        return choices.contains("wallpaper_interval_minutes") || choices.contains(PersonalDock.PLACEMENT) || choices.contains(TileLayout.SCALE) || choices.contains(TileLayout.POSITION) || choices.contains("columns") || choices.contains(Config.ROWS_BELOW_DOCK_KEY)
                 || choices.contains("animations") || choices.contains("advanced_effects")
                 || choices.contains(Config.WALLPAPER_CHOICE_KEY) || choices.contains(Config.DOCK_OPACITY_KEY)
                 || choices.contains(OpenOnStart.KEY);

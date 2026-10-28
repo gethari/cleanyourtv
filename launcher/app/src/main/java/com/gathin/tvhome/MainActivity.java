@@ -140,6 +140,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private RecyclerView grid;
     private FrameLayout root;
     private WallpaperPlayer wallpaperPlayer;
+    private PersonalDock personalDock;
     private GlassView glass;
     private View ambient;
     private TextView heroName;
@@ -648,11 +649,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
         int rowsBelowDock = cfg.rowsBelowDock;
+        TileLayout tileLayout = new TileLayout(this);
         grid.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             int h = b - t;
             // Item height follows the tile size, which follows the columns and the rows that must fit (AppAdapter.tileWidthPx).
             int inner = (r - l) - grid.getPaddingLeft() - grid.getPaddingRight();
-            int tileW = AppAdapter.tileWidthPx(inner, h, COLUMNS, rowsBelowDock, cfg.dockTitle, cfg.dockRow, density);
+            int tileW = tileLayout.width(AppAdapter.tileWidthPx(inner, h, COLUMNS, rowsBelowDock, cfg.dockTitle, cfg.dockRow, density));
             int itemH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(tileW), density);
             int dockRow = itemH + (int) (AppAdapter.DOCK_EXTRA_DP * density);   // item height plus DockDecoration offsets
             int gridRows = itemH * rowsBelowDock;
@@ -668,6 +670,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // A single row never shows the names under its tiles (the title above the row names the app), so the
             // 7dp gap and 22dp label item_app.xml keeps for them would only lift the row: sit it that much lower.
             if (singleRow && !cfg.alwaysShowNames) want += (int) (29 * density);
+            if (MainActivity.this.dockRow) want = tileLayout.top(Math.max(shelfClearance, (int) ((cfg.dockTitle ? AppAdapter.TITLE_ROOM_DP : AppAdapter.TOP_ROOM_DP) * density)), want);
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
                 // A vertical grid parks the dock on the new padding line by scrolling (onTileFocused); a sideways
@@ -793,6 +796,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
         addTopBarApps(cfg.topBarApps, cfg.launchActions);
+        if (PersonalDock.placement(this) > 0) {
+            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_launcher_tune, 0, 0, 0);
+            makeIconOnly((TextView) btnSettings);
+            addPersonalButton(R.drawable.ic_wallpaper_next, R.string.next_wallpaper, () -> wallpaperPlayer.next(), true);
+            addPersonalButton(R.drawable.ic_settings, R.string.tv_settings,
+                    () -> open(systemIntent(Settings.ACTION_SETTINGS)), false);
+        }
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
         wifiIconOnly = iconOnlyButtons && cfg.wifiLabelWidth <= 0;
@@ -897,6 +907,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
                     .build(), vpnCallback);
         }
+        int placement = PersonalDock.placement(this);
+        if (placement > 0) {
+            grid.setVisibility(View.GONE);
+            glass.setVisibility(View.GONE);
+            hero.setVisibility(View.GONE);
+            heroName.setVisibility(View.GONE);
+            personalDock = new PersonalDock(this, cfg, placement);
+            FrameLayout.LayoutParams dockParams = new FrameLayout.LayoutParams(
+                    placement == 1 ? ViewGroup.LayoutParams.MATCH_PARENT : (int) (230 * density),
+                    placement == 1 ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.MATCH_PARENT);
+            dockParams.gravity = placement == 1 ? Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL
+                    : Gravity.TOP | (placement == 3 ? Gravity.RIGHT : Gravity.LEFT);
+            dockParams.setMargins((int) ((placement == 1 ? 48 : 12) * density), placement == 1 ? 0 : (int) (140 * density),
+                    (int) ((placement == 1 ? 48 : 12) * density), (int) (4 * density));
+            root.addView(personalDock, dockParams);
+            btnReorder.setOnClickListener(v -> PersonalDock.manage(this, cfg, this::recreate));
+        }
+
         // Not after recreate(): the launch intent survives it and would open the settings again.
         if (savedInstanceState == null && !openLauncherSettingsIfAsked(getIntent())) openInputsIfAsked(getIntent());
     }
@@ -1012,6 +1040,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             recreate();
             return;
         }
+        if (personalDock != null) personalDock.refresh();
         restartIdleClock();
         promptsPaused = false;
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
@@ -1326,7 +1355,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Vendor keys (TCL Netflix button, 4062) never reach the key services, only the focused window.
         if (event.getKeyCode() >= 1000 && RemoteKeys.handle(this, event, homeAppKeys.get(event.getKeyCode()), null)) return true;
         if (handleSettingsKey(event)) return true;
-        if (tileMenuEnabled && !reordering && openPopup == null && cardPrompt == null
+        if (personalDock == null && tileMenuEnabled && !reordering && openPopup == null && cardPrompt == null
                 && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
             int position = focusedTilePosition();
             if (position >= 0 && position < adapter.appCount()
@@ -1403,6 +1432,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The start shared by reorder and edit-dock mode. False when there is nothing to move. */
     private boolean beginReorder() {
+        if (personalDock != null) { PersonalDock.manage(this, Config.load(this), this::recreate); return false; }
         if (adapter.movableCount() < 2) return false;
         // Before the reload below: once it has dropped the empty slots, the dock row also shows grid apps.
         dockInSession = new HashSet<>();
@@ -1419,6 +1449,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Edit dock (Settings menu): focus goes to the first dock place, which OK then chooses. */
     private void startDockEdit() {
+        if (personalDock != null) { PersonalDock.manage(this, Config.load(this), this::recreate); return; }
         if (reordering) endReorder();
         if (!beginReorder()) return;
         dockEditing = true;
@@ -1690,6 +1721,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onTileFocused(int position, View card) {
+        if (personalDock != null) return;
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
@@ -2412,6 +2444,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * Puts each top_bar_apps app in the top bar as a round pill with the app's own logo, left of the network pill.
      * The logo keeps its colours: the pill style's tint, which turns the other icons white, is cleared.
      */
+    private void addPersonalButton(int icon, int label, Runnable action, boolean wallpaper) {
+        LinearLayout bar = findViewById(R.id.topButtons);
+        TextView button = (TextView) getLayoutInflater().inflate(R.layout.top_app_button, bar, false);
+        button.setId(View.generateViewId());
+        button.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0);
+        button.setContentDescription(getString(label));
+        button.setTooltipText(getString(label));
+        button.setOnClickListener(v -> action.run());
+        if (wallpaper) button.setOnLongClickListener(v -> {
+            startActivityForResult(new Intent(this, LauncherSettingsActivity.class)
+                    .putExtra("wallpaper_interval", true), LAUNCHER_SETTINGS_REQUEST);
+            return true;
+        });
+        bar.addView(button, bar.indexOfChild(findViewById(R.id.btnSettings)));
+        topAppButtons.add(button);
+    }
+
     private void addTopBarApps(List<String> packages, Map<String, String> launchActions) {
         ViewGroup bar = findViewById(R.id.topButtons);
         PackageManager pm = getPackageManager();
@@ -2502,6 +2551,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void focusTile(int position) {
+        if (personalDock != null) { personalDock.focusCurrent(); return; }
         libraryFocusPending = false;
         cancelPendingFocusScroll();
         if (adapter.appCount() == 0) {

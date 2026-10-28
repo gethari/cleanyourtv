@@ -506,4 +506,9 @@
     <!-- Tiles drawn from the app's icon and name instead of its banner (for banners that crop badly). -->
     <string-array name="icon_tiles" translatable="false">
     </string-array>
+    <!-- Tile size and row position; 100 preserves the existing size and bottom placement. Theme configurable. -->
+    <integer name="tile_scale">100</integer>
+    <integer name="tile_position">100</integer>
+    <!-- 0: existing theme layout, 1: bottom edge, 2: left carousel, 3: right carousel. -->
+    <integer name="dock_placement">0</integer>
 </resources>

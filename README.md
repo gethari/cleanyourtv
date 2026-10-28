@@ -1,3 +1,22 @@
+# CleanYourTV — personal dock and wallpaper fork
+
+An enhanced fork of [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv), keeping its Apple TV look with **Unsplash wallpapers, smaller tiles, editable docks and left/right carousels**.
+
+| Bottom dock | Side carousel |
+|---|---|
+| ![Apple TV style bottom dock](docs/fork-screenshots/bottom.jpg) | ![Left carousel](docs/fork-screenshots/left.jpg) |
+
+- **Make the dock yours:** independent tile sizing, bottom/left/right placement, and remote controls to add, remove or reorder shortcuts.
+- **Enjoy fresh wallpapers:** optional personal Unsplash collections, cached offline fallback, a next-wallpaper button and configurable intervals.
+- **Keep settings clear:** separate launcher, TV settings and wallpaper icons; a tested TCL configuration preserves the original Google TV settings overlay.
+- **Stay current:** includes upstream launcher fixes through `095b71ad` (28 October 2026).
+
+[Feature comparison, screenshots and setup](docs/FORK.md) · [TCL theme](themes/tcl-q6k/README.md)
+
+This fork adds optional network access for Unsplash; upstream remains the smaller offline alternative. The original project's documentation and credits follow below. “Official” links below refer to the upstream project.
+
+---
+
 <p align="center">
   <a href="https://cleanyour.tv"><img src="https://raw.githubusercontent.com/Gathin23/cleanyourtv/main/docs/banner.png" alt="CleanYourTV. Your TV, minus the ads. Strip the bloatware from any Android TV or Google TV over Wi-Fi and replace the ad-filled home screen with a clean launcher that looks like an Apple TV. No root, no cable, nothing uninstalled, and a one-line restore." width="800"></a>
 </p>
@@ -185,6 +204,7 @@ tools/theme.sh themes/aurora                                 # push a theme; --r
 | [`tools/check.py`](tools/check.py) | Compares the TV with the list that was applied, for what a firmware update undid; `--fix` puts it back. |
 | [`tools/adb-closed.py`](tools/adb-closed.py) | Checks that the TV's network ADB port is closed once debugging is off: exits 0 when the TV refuses the connection, 1 while it is still open, 2 when nothing answered or the check itself could not run. No `nc` needed. |
 | [`tools/privacy.py`](tools/privacy.py) | Audits the TV for voice, ACR and telemetry candidates and prints the evidence for each; `--write` turns the findings into a list `disable.sh` and `restore.sh` already understand. |
+| [`tools/unsplash-setup.py`](tools/unsplash-setup.py) | Import personal Unsplash credentials from an environment file into the launcher. |
 | [`tools/theme.sh`](tools/theme.sh), [`theme_restart.py`](tools/theme_restart.py) | Push a folder from [`themes/`](themes/) to the launcher and restart Home. |
 | [`tools/manage.py`](tools/manage.py) | List every add-on, theme and switch with its screenshot, see what is on the TV, and install, update or remove one by running its creator's own script. |
 | [`tools/bench.py`](tools/bench.py) | Measures the launcher that answers HOME: key latency, how far the focus moved, janky frames, cold start, return to Home, and the idle CPU and PSS it costs. Changes nothing on the TV and writes the raw per-key numbers to JSON; no extra install. |
@@ -256,7 +276,7 @@ set is in [Troubleshooting](docs/TROUBLESHOOTING.md).
 |---|---|
 | **Configure** | Dock order, hidden apps, Live TV app, 4 to 7 tiles per row, reduced motion. All in [`config.xml`](launcher/app/src/main/res/values/config.xml) |
 | **Settings on the TV** | Hold OK on Settings for launcher settings. Optional `launcher_settings_button` makes a normal click open them directly; TV settings remain on the settings page and their app tile. |
-| **Themes** | Background, wallpaper and layout from a `config.json` pushed over Wi-Fi, no rebuild. ten ship in [`themes/`](themes/), the built-in `default/` included |
+| **Themes** | Background, wallpaper and layout from a `config.json` pushed over Wi-Fi, no rebuild. eleven ship in [`themes/`](themes/), the built-in `default/` included |
 | **29 languages** | Follows the TV's language, with a fully mirrored right-to-left layout for Hebrew |
 | **App library** | Optional: browse every installed app and add or remove Home shortcuts. See [the app library guide](docs/app-library.md) |
 | **Tile menu** | Optional (`tile_menu`): hold OK on a tile for Move, Remove from Home and App info. Off, holding OK opens App info |

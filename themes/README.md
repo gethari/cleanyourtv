@@ -30,6 +30,8 @@ refused (copy a theme first), and a `config.json` it cannot read is named before
 | `retro/` | Pure black, a dock with no band or border, a rim-only focus highlight (`glass_style: rim`), no colour gradient, icon-only top buttons, and a wallpaper for morning, afternoon and night. The three pictures are the author's own; see `retro/CREDITS.md`. By [REGT-URRED](https://github.com/REGT-URRED) | <img src="retro/screenshot.jpg" width="320" alt="retro theme"> |
 | `sweden/` | Three photos of Sweden from Wikimedia Commons (the aurora over Abisko, Vasabron at dusk, Skeppsbron in the evening), a new one every hour with its place and photographer under the buttons; six small tiles in a frosted-glass dock, round icon-only buttons, no hero name. The photos are CC BY / CC BY-SA, not MIT: see `sweden/CREDITS.md` | <img src="sweden/screenshot.jpg" width="320" alt="sweden theme"> |
 
+| `tcl-q6k/` | Personal TCL layout with smaller tiles, Unsplash support and the native remote settings overlay | <img src="tcl-q6k/screenshot.jpg" width="320" alt="TCL theme"> |
+
 Every theme folder has a `screenshot.jpg` of Home with that theme on a real TV. `tools/theme.sh` never
 pushes it; it is only here so you can see a theme before you try it.
 
@@ -43,6 +45,9 @@ A new key needs one there in the same pull request.
 
 | Key | Type | Meaning |
 |---|---|---|
+| `dock_placement` | int, 0–3 | 0 keeps the theme grid, 1 is a compact bottom-edge dock, 2 a left carousel, 3 a right carousel. Hold OK on an app to manage shortcuts |
+| `tile_scale` | int, 50–100 | Tile size in percent, independent of the number of columns (100 keeps the original size) |
+| `tile_position` | int, 0–100 | Vertical dock row position: 0 near the top, 100 at the bottom; leaves space for the header |
 | `dock_apps` | list of package names | The dock row, in order; missing apps are skipped |
 | `fill_dock` | bool | Fill the dock slots `dock_apps` leaves free with the first grid apps (true by default); false leaves them empty |
 | `hidden_apps` | list of package names | Never shown as tiles |

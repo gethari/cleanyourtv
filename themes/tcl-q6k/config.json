@@ -1,0 +1,26 @@
+{
+  "dock_apps": [
+    "app.wuplay.androidtv",
+    "com.nuvio.tv",
+    "com.stremio.one",
+    "org.smarttube.stable"
+  ],
+  "hidden_apps": [
+    "com.tcl.tv"
+  ],
+  "live_tv_package": "com.tcl.tv",
+  "columns": 4,
+  "rows_below_dock": 0,
+  "settings_key_keycodes": [],
+  "reduced_motion": false,
+  "background_color": "#000000",
+  "wallpaper": true,
+  "wallpaper_rotation_minutes": 30,
+  "wallpaper_dim": 40,
+  "tile_scale": 70,
+  "tile_position": 100,
+  "launcher_settings_button": true,
+  "stock_home_redirect": "com.google.android.apps.tv.launcherx",
+  "dock_placement": 1,
+  "restore_key_services": true
+}

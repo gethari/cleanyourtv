@@ -3,7 +3,7 @@
 [Back to the README](../README.md#the-launcher)
 
 A small native home screen for Android TV: **about 532 KB**, plain Java, built for TVs with 1 GB of RAM.
-No blur, no video, no network permission, no background services. This page has the details the
+No blur or video. This personal build adds network permission for optional Unsplash wallpapers. This page has the details the
 README leaves out: settings, languages, remote keys and building it yourself. Every key a theme can
 set is in [`themes/README.md`](../themes/README.md#keys), and the opt-in switches with their
 screenshots are in [`docs/switches.md`](switches.md).
@@ -57,6 +57,10 @@ The launcher's own page has these rows, top to bottom:
 - **Wallpaper**: one picture from the theme's collection (or its `wallpaper.jpg`), **None**, or **Theme
   default**. A pick holds that picture and stops the rotation until you choose Theme default, press
   Follow theme, or push the theme again.
+- **Wallpaper interval**: Manual only, or 5, 15, 30, 60, 120, 360 or 1440 minutes. Click the wallpaper icon for another image; hold OK on it to open the interval picker. The sliders icon opens Launcher settings and the gear opens TV system settings. The physical remote keeps its native overlay.
+- **Dock placement**: Theme layout, Bottom edge, Left carousel or Right carousel. Side carousels enlarge the focused app, show smaller neighbors, and wrap with Up/Down. Bottom docks sit at the lower edge and scroll sideways.
+- **Add or remove dock apps**: choose shortcuts with the remote and Save. Hold OK on a dock app to remove or move it, or use the add tile. Removing a shortcut leaves the app installed.
+- **Tile size** (50–100%) and **Tile row position (0% top, 100% bottom)**, independently of the number of columns.
 - **Animations** on or off, and **Advanced effects** (tile lift, icon zoom and smooth ambient-colour
   transitions; they may use more memory) once animations are on.
 - **Open on start**, only with `open_on_start_choice`: Off, or an app that opens instead of Home the first
@@ -129,3 +133,5 @@ Up and Down move one row. The top buttons never fall through to tiles, and Down 
 dock tile you came from. The last focused app is remembered, and installing or removing an app refreshes
 the tiles while Home is open. App banners load at xhdpi or better, so low-density TV UIs do not downsample
 them before the focus zoom.
+
+Launcher settings also provides **Tile size** (50–100%) and **Tile row position (0% top, 100% bottom)**. These keep the number of columns separate from the tile size.

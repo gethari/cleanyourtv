@@ -641,6 +641,8 @@ final class Config {
         boolean wallpaperEnabled = json == null || bool(json, "wallpaper", true);
         if (!wallpaperEnabled) wallpaper = null;
         int rotationMinutes = json == null ? 0 : integer(json, "wallpaper_rotation_minutes", 0, 0, 1440);
+        int intervalChoice = choices.getInt("wallpaper_interval_minutes", -1);
+        if (intervalChoice >= 0 && intervalChoice <= 1440) rotationMinutes = intervalChoice;
         int wallpaperDim = json == null ? 0 : integer(json, "wallpaper_dim", 0, 0, 90);
         int dockOpacity = json == null ? 100 : integer(json, "dock_opacity", 100, 30, 100);
         dockOpacity = chosenDockOpacity(choices.getInt(DOCK_OPACITY_KEY, -1), dockOpacity);
@@ -649,7 +651,7 @@ final class Config {
         // An unknown order must not silently change how an existing collection rotates.
         if (!WallpaperRotation.validOrder(wallpaperOrder)) wallpaperOrder = WallpaperRotation.ORDER_SHUFFLE;
         List<File> wallpapers = new ArrayList<>();
-        if (rotationMinutes > 0 && dir != null && wallpaperEnabled) {
+        if ((rotationMinutes > 0 || intervalChoice == 0) && dir != null && wallpaperEnabled) {
             wallpapers.addAll(WallpaperRotation.images(new File(dir, "wallpapers")));
         }
         if (wallpapers.isEmpty() && wallpaper != null) wallpapers.add(wallpaper);
@@ -726,11 +728,11 @@ final class Config {
             SharedPreferences.Editor editor = choices.edit();
             if (!"absent".equals(token)) editor.remove("columns").remove("animations")
                     .remove("advanced_effects").remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY)
-                    .remove(DOCK_OPACITY_KEY);
+                    .remove(DOCK_OPACITY_KEY).remove("tile_scale").remove("tile_position").remove("dock_placement").remove("wallpaper_interval_minutes");
             editor.putString(THEME_SIGNATURE_KEY, signature).commit();
         } else if (!seen.equals(signature)) {
             choices.edit().remove("columns").remove("animations").remove("advanced_effects")
-                    .remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY).remove(DOCK_OPACITY_KEY)
+                    .remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY).remove(DOCK_OPACITY_KEY).remove("tile_scale").remove("tile_position").remove("dock_placement").remove("wallpaper_interval_minutes")
                     .putString(THEME_SIGNATURE_KEY, signature).commit();
         }
     }
@@ -775,6 +777,22 @@ final class Config {
             }
         }
         return json;
+    }
+
+    static int dockPlacement(Context context) {
+        File directory = dir(context);
+        JSONObject json = read(directory == null ? null : new File(directory, FILE_NAME));
+        int placement = context.getResources().getInteger(R.integer.dock_placement);
+        return json == null ? placement : integer(json, "dock_placement", placement, 0, 3);
+    }
+
+    static int[] tileLayoutValues(Context context) {
+        File directory = dir(context);
+        JSONObject json = read(directory == null ? null : new File(directory, FILE_NAME));
+        int scale = context.getResources().getInteger(R.integer.tile_scale);
+        int position = context.getResources().getInteger(R.integer.tile_position);
+        return new int[]{json == null ? scale : integer(json, "tile_scale", scale, 50, 100),
+                json == null ? position : integer(json, "tile_position", position, 0, 100)};
     }
 
     private static JSONObject read(File file) {

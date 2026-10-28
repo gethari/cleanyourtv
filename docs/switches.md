@@ -24,6 +24,9 @@ fits the rules; keys from before the rule sit on its wanted list until a screens
 
 | Key | Screenshot |
 |---|---|
+| `dock_placement` | <img src="switches/dock_placement.jpg" width="320" alt="Left carousel on a TV"> |
+| `tile_scale` | <img src="../themes/tcl-q6k/screenshot.jpg" width="320" alt="Smaller tiles on a TV"> |
+| `tile_position` | <img src="switches/tile_position.jpg" width="320" alt="Tile row moved toward the center of the screen"> |
 | `columns` | <img src="../themes/six-columns/screenshot.jpg" width="320" alt="columns on a TV"> |
 | `glass_style` | <img src="switches/glass_style.jpg" width="320" alt="glass_style halo on a TV"> |
 | `sky_intensity` | <img src="sky-sunset.jpg" width="320" alt="sky_intensity on a TV"> |

@@ -68,4 +68,21 @@
     </plurals>
     <string name="greeting_with_name">%1$s %2$s</string>
     <string name="game_live">กำลังถ่ายทอดสด</string>
+    <string name="tile_size">Tile size</string>
+    <string name="tile_position">Tile row position (0% top, 100% bottom)</string>
+    <string name="dock_placement">Dock placement</string>
+    <string name="dock_theme_layout">Theme layout</string>
+    <string name="dock_bottom">Bottom edge</string>
+    <string name="dock_left">Left carousel</string>
+    <string name="dock_right">Right carousel</string>
+    <string name="manage_dock_apps">Add or remove dock apps</string>
+    <string name="dock_save">Save</string>
+    <string name="dock_remove">Remove from dock</string>
+    <string name="dock_earlier">Move earlier</string>
+    <string name="dock_later">Move later</string>
+    <string name="dock_add">Add apps</string>
+    <string name="next_wallpaper">Next wallpaper</string>
+    <string name="wallpaper_interval">Wallpaper interval</string>
+    <string name="wallpaper_manual">Manual only</string>
+    <string name="wallpaper_minutes">%1$d minutes</string>
 </resources>

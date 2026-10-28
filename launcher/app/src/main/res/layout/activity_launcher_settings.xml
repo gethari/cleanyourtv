@@ -93,6 +93,17 @@
             style="@style/SettingsRow"
             android:layout_marginTop="28dp" />
 
+        <TextView android:id="@+id/wallpaperIntervalChoice" style="@style/SettingsRow"
+            android:layout_marginTop="10dp" android:text="@string/wallpaper_interval" />
+        <TextView android:id="@+id/dockPlacementChoice" style="@style/SettingsRow"
+            android:layout_marginTop="18dp" android:text="@string/dock_placement" />
+        <TextView android:id="@+id/manageDockChoice" style="@style/SettingsRow"
+            android:layout_marginTop="10dp" android:text="@string/manage_dock_apps" />
+        <TextView android:id="@+id/tileSizeChoice" style="@style/SettingsRow"
+            android:layout_marginTop="18dp" android:text="@string/tile_size" />
+        <TextView android:id="@+id/tilePositionChoice" style="@style/SettingsRow"
+            android:layout_marginTop="10dp" android:text="@string/tile_position" />
+
         <TextView
             android:id="@+id/animationsChoice"
             style="@style/SettingsRow"

@@ -17,6 +17,12 @@ public class ThemeFilesTest {
         assertEquals("theme_revision", ThemeFiles.path(Collections.singletonList("theme_revision")));
     }
 
+    @Test public void unsplashStagingIsAllowedWithoutOpeningOtherPrivatePaths() {
+        assertEquals("unsplash-setup.json", ThemeFiles.path(Collections.singletonList("unsplash-setup.json")));
+        assertNull(ThemeFiles.path(Arrays.asList("..", "unsplash-setup.json")));
+        assertNull(ThemeFiles.path(Collections.singletonList("unsplash-secret.json")));
+    }
+
     @Test public void collectionImagesAreAllowed() {
         assertEquals("wallpapers/dusk.jpg", ThemeFiles.path(Arrays.asList("wallpapers", "dusk.jpg")));
         assertEquals("wallpapers/Night_2.WEBP", ThemeFiles.path(Arrays.asList("wallpapers", "Night_2.WEBP")));

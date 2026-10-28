@@ -31,6 +31,8 @@ import java.util.concurrent.Executors;
 
 /** Displays and rotates a theme's local wallpaper images while Home is visible. */
 final class WallpaperPlayer {
+    private final UnsplashWallpaper unsplash;
+    private final TextView credit;
     private final FrameLayout root;
     private final ImageView image;
     private final int backgroundColor;
@@ -65,6 +67,28 @@ final class WallpaperPlayer {
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
         this.root = root;
         backgroundColor = config.backgroundColor;
+        unsplash = new UnsplashWallpaper(context, config);
+        credit = new android.widget.TextView(context);
+        credit.setTextColor(android.graphics.Color.WHITE);
+        credit.setTextSize(12);
+        credit.setPadding(12, 6, 12, 6);
+        credit.setBackgroundColor(0x99000000);
+        credit.setVisibility(View.GONE);
+        credit.setFocusable(true);
+        credit.setOnFocusChangeListener((view, focused) ->
+                view.setBackgroundColor(focused ? 0xFF444444 : 0x99000000));
+        FrameLayout.LayoutParams creditLayout = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM | android.view.Gravity.RIGHT);
+        int dockPlacement = context.getSharedPreferences(Config.SETTINGS_NAME, Context.MODE_PRIVATE)
+                .getInt(PersonalDock.PLACEMENT, Config.dockPlacement(context));
+        if (dockPlacement > 0) {
+            creditLayout.gravity = Gravity.TOP | Gravity.RIGHT;
+            creditLayout.setMargins(0, Math.round(115 * context.getResources().getDisplayMetrics().density), 24, 0);
+        } else {
+            creditLayout.setMargins(0, 0, 24, 12);
+        }
+        root.addView(credit, creditLayout);
         files = new ArrayList<>(config.wallpapers);
         interval = config.wallpaperRotationMinutes * 60_000L;
         bitmapConfig = config.wallpaperTrueColor ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
@@ -91,7 +115,7 @@ final class WallpaperPlayer {
         names = config.wallpaperCaptions && config.wallpaperEnabled && !files.isEmpty()
                 ? WallpaperCaptions.read(files.get(0).getParentFile()) : Collections.emptyMap();
         caption = names.isEmpty() ? null : makeCaption(context, root);
-        if (config.wallpaperEnabled && !files.isEmpty()) {
+        if (config.wallpaperEnabled && (!files.isEmpty() || unsplash.enabled())) {
             root.addView(image, 0, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             showFirst();
@@ -165,16 +189,72 @@ final class WallpaperPlayer {
         decoder.shutdownNow();
     }
 
+    private boolean nextRequested;
+
+    void next() {
+        if (!active || closed || loading) return;
+        unsplash.next();
+        nextRequested = true;
+        update();
+    }
+
     void update() {
-        if (!active || closed || loading || files.isEmpty()) return;
+        if (!active || closed || loading) return;
+        if (unsplash.enabled() && (unsplash.due() || displayed.isEmpty())) {
+            loading = true;
+            decoder.execute(() -> {
+                UnsplashWallpaper.Photo photo = unsplash.load(width, height);
+                root.post(() -> {
+                    loading = false;
+                    if (closed || !active) {
+                        if (photo != null) photo.bitmap.recycle();
+                        return;
+                    }
+                    if (photo != null) {
+                        nextRequested = false;
+                        if (dimColor != 0) {
+                            new Canvas(photo.bitmap).drawColor(dimColor);
+                        }
+                        show(photo.bitmap);
+                        displayed = "unsplash:" + photo.id;
+                        credit.setText("Photo: " + photo.photographer + " / Unsplash");
+                        credit.setContentDescription("Photo by " + photo.photographer
+                                + " on Unsplash. Open photo credits.");
+                        credit.setVisibility(View.VISIBLE);
+                        credit.setOnClickListener(view -> {
+                            try {
+                                root.getContext().startActivity(new android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(photo.link)));
+                            } catch (android.content.ActivityNotFoundException unavailable) {
+                                android.widget.Toast.makeText(root.getContext(),
+                                        "Photo by " + photo.photographer + " on Unsplash",
+                                        android.widget.Toast.LENGTH_LONG).show();
+                            }
+                        });
+                        Log.i("TvHome.Wallpaper", "Showing Unsplash photo " + photo.id);
+                    } else {
+                        updateOffline();
+                    }
+                });
+            });
+            return;
+        }
+        if (unsplash.enabled() && displayed.startsWith("unsplash:")) return;
+        updateOffline();
+    }
+
+    private void updateOffline() {
+        if (files.isEmpty()) return;
         String previous = preferences.getString("image", "");
         // A picture outside the time of day's group (the group changed) is replaced at once, not after the interval.
         List<File> playable = playable();
         File selected = WallpaperRotation.find(playable, previous);
         long changed = preferences.getLong("changed", 0);
-        if (selected == null || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
+        if (nextRequested || selected == null || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
             selected = WallpaperRotation.pick(playable, previous, order, random);
         }
+        nextRequested = false;
         if (selected == null || selected.getName().equals(displayed)) return;
         File next = selected;
         loading = true;
@@ -192,6 +272,7 @@ final class WallpaperPlayer {
                     update();
                     return;
                 }
+                credit.setVisibility(View.GONE);
                 show(bitmap);
                 displayed = next.getName();
                 showCaption(true);
